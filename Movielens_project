@@ -1,0 +1,182 @@
+---
+#This project is submitted with the purpose to gain a score as per the EDX module 
+Title: "MovieLens Project: Data Science - HarvardX"
+Author: "Mitta"
+Date: "09 Oct 2019"
+Required Time: About an hour
+Output: 
+  pdf_document: default
+  html_document: default
+  
+  ---
+  
+# **Introduction**
+This is a project recommended on the Data Science course, 
+in which we are required to provide some movie recommendations
+based on the data selected for the purpose of this course: MovieLens data 10M [the M represents million ratings which are available on the set].
+Additionally, the goal of the project is to estimate the ratings that users would likely give.
+Also to note, the number of users is 72,000. We must also calculate the RMSE. Ideally, RMSE <0.87750.
+
+##The user is expected to have the R programme downloaded already.
+##If not, download it for Windows from: 
+##https://cran.r-project.org/bin/windows/base/.
+##Use the 64-bit to maximise on memory space.
+
+
+# **Stage 1: Begin setting up for your analysis**
+
+##Load your data libraries
+##Using the code from the course
+
+{r}
+
+################################
+# Create edx set, validation set
+################################
+
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+# MovieLens 10M dataset:
+# https://grouplens.org/datasets/movielens/10m/
+# http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+dl <- tempfile()
+download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Validation set will be 10% of MovieLens data
+
+set.seed(1, sample.kind="Rounding")
+# if using R 3.5 or earlier, use `set.seed(1)` instead
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in validation set are also in edx set
+
+validation <- temp %>% 
+     semi_join(edx, by = "movieId") %>%
+     semi_join(edx, by = "userId")
+
+# Add rows removed from validation set back into edx set
+
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+
+#################################################
+# **Stage 2: Data Analysis**
+################################################
+We will now be analysing the data
+
+# Check the data
+
+{r}
+glimpse(edx)
+
+# Analyse the ratings
+
+{r ratings_table}
+edx %>% group_by(rating) %>% summarize(count = n())%>% 
+  rename ("Rating Given" = rating) %>%
+  rename (Count = count) %>%
+  kable()
+  
+# What is the number of ratings?
+
+r {nrow(edx)}
+
+# What is the min and max number of years in which ratings take place?
+
+r {format(as_datetime(min(edx$timestamp)))}
+r {format(as_datetime(max(edx$timestamp)))}
+
+# Calculate the number of users who are not standard
+ 
+ r n_distinct(edx$userId)
+  
+# Calculate the number of nonstandard movies in the dataset
+  
+  r n_distinct(edx$movieId)
+  
+# Which movies are mostly rated?
+
+{r movies_distribution, fig.align='center'}
+edx %>%
+count(movieId) %>%
+ggplot(aes(n)) +
+geom_histogram(bins = 30, color = "black") +
+scale_x_log10() +
+xlab("Number of ratings") +
+  ylab("Movies Count") +
+ggtitle("Number of ratings per movie") + theme(plot.title = element_text(hjust = 0.5))
+
+# Which genres are likely to be popular?
+
+{r genre_distribution}
+edx %>% rename(Title = title) %>% group_by(Title) %>%
+   summarize(count = n()) %>%
+   arrange(desc(count)) %>% 
+   top_n(10) %>%
+   rename("Ratings Count" = count) %>%
+    knitr::kable()
+    
+ 
+ # How many ratings are given in a year?
+ 
+ {r}
+edxRatingsGivenPerYear <- edx %>%
+    mutate(tsYear = year(as_datetime(timestamp))) %>%
+    group_by(tsYear) %>%
+    summarize(nRatings = n(), differentUsers = n_distinct(userId), differentMovies = n_distinct(movieId))
+
+# What are the top 3 rated movies?
+top3 <- edx %>% group_by(movieId) %>% summarize(count = n()) %>% 
+  arrange(desc(count)) %>% head(3)
+
+top3
+
+
+# **Perform a visualisation of the top 3 ratings**
+
+top_movies %>% #For top 3 rated movies
+  ggplot(aes(x=reorder(title, count), y=count)) +
+  geom_bar(stat='identity', fill="dark green") + coord_flip(y=c(0, 50000)) +
+  labs(x="", y="Number of ratings") +
+  geom_text(aes(label= count), hjust=-0.1, size=3) +
+  labs(title="Top 3 movies based \n on number of user ratings" , 
+       caption = "source data: edx data table")
+       
+# Which movies have the most ratings of all time?
+
+{r Rating Frequency, echo=FALSE, message=FALSE, warning=FALSE}
+edx %>% group_by(title) %>% summarise(n = n()) %>% arrange(desc(n)) %>% top_n(5) %>% niceKable
+
+
+########################################################################
+# **Stage 3: Calculating the RMSE**
+########################################################################
+
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+
+
+
