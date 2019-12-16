@@ -177,6 +177,104 @@ RMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
+   # Predict the RMSE on the validation set
+   
+   return(RMSE(validation$rating, predicted_ratings))
+})
+# plot the result of lambdas
+df <- data.frame(RMSE = rmses, lambdas = lambdas)
+ggplot(df, aes(lambdas, rmses)) +
+   theme_classic()  +
+   geom_point() +
+   labs(title = "RMSEs vs Lambdas - Regularized Movie+User Model",
+        y = "RMSEs",
+        x = "lambdas")
+# Get the lambda value that minimize the RMSE
+min_lambda <- lambdas[which.min(rmses)]
+# Predict the RMSE on the validation set
+rmse_regularized_movie_user_model <- min(rmses)
+# Adding the results to the results dataset
+results <- results %>% add_row(model="Regularized Movie+User Based Model", RMSE=rmse_regularized_movie_user_model)
+```
+
+The RMSE on the ```validation``` dataset is **0.8629**. The Regularized Movie+User Based Model improves just a little the result of the Non-Regularized Model.
+
+### Regularized Movie+User+Genre Model
+
+```{r}
+# Calculate the average of all movies
+mu_hat <- mean(edx$rating)
+# Define a table of lambdas
+lambdas <- seq(0, 15, 0.1)
+# Compute the predicted ratings on validation dataset using different values of lambda
+rmses <- sapply(lambdas, function(lambda) {
+   # Calculate the average by user
+   
+   b_i <- edx %>%
+      group_by(movieId) %>%
+      summarize(b_i = sum(rating - mu_hat) / (n() + lambda))
+   
+   # Calculate the average by user
+   
+   b_u <- edx %>%
+      left_join(b_i, by='movieId') %>%
+      group_by(userId) %>%
+      summarize(b_u = sum(rating - b_i - mu_hat) / (n() + lambda))
+   
+    b_u_g <- edx %>%
+      left_join(b_i, by='movieId') %>%
+      left_join(b_u, by='userId') %>%
+      group_by(genre) %>%
+      summarize(b_u_g = sum(rating - b_i - mu_hat - b_u) / (n() + lambda))
+   
+   # Compute the predicted ratings on validation dataset
+   
+   predicted_ratings <- validation %>%
+      left_join(b_i, by='movieId') %>%
+      left_join(b_u, by='userId') %>%
+      left_join(b_u_g, by='genre') %>%
+      mutate(pred = mu_hat + b_i + b_u + b_u_g) %>%
+      pull(pred)
+   
+   # Predict the RMSE on the validation set
+   
+   return(RMSE(validation$rating, predicted_ratings))
+})
+# plot the result of lambdas
+df <- data.frame(RMSE = rmses, lambdas = lambdas)
+ggplot(df, aes(lambdas, rmses)) +
+   theme_classic()  +
+   geom_point() +
+   labs(title = "RMSEs vs Lambdas - Regularized Movie+User+Genre Model",
+        y = "RMSEs",
+        x = "lambdas")
+# Get the lambda value that minimize the RMSE
+min_lambda <- lambdas[which.min(rmses)]
+# Predict the RMSE on the validation set
+rmse_regularized_movie_user_genre_model <- min(rmses)
+# Adding the results to the results dataset
+results <- results %>% add_row(model="Regularized Movie+User+Genre Based Model", RMSE=rmse_regularized_movie_user_genre_model)
+```
+
+The RMSE on the ```validation``` dataset is **0.8628** and this is the best result of the builted models. The Regularized Movie+User+Genre Based Model improves just a little the result of the Non-Regularized Model. As the Non-Regularized Model, the ```genre``` predictor doesn't improve significantly the model's performance.
+
+# Results and conclusion
+
+This is the summary results for all the model builted, trained on ```edx``` dataset and validated on the ```validation``` dataset.
+
+```{r}
+# Shows the results
+results %>% 
+   kable() %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+             position = "center",
+             font_size = 10,
+             full_width = FALSE)
+             
+          
+             
+             
+             
 
 
 
