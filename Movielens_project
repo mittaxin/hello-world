@@ -4,9 +4,8 @@ Title: "MovieLens Project: Data Science - HarvardX"
 Author: "Mitta"
 Date: "09 Oct 2019"
 Required Time: About an hour
-Output: 
-  pdf_document: default
-  html_document: default
+Output: html_document: default
+  #' output: pdf_document
   
   ---
   
